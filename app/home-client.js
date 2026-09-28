@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 export default function HomeClient() {
-  const params = useSearchParams();
   const [phase, setPhase] = useState("checking");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -18,12 +16,8 @@ export default function HomeClient() {
 
   useEffect(() => {
     setOrigin(window.location.origin);
-    const connected = params.get("connected");
-    const error = params.get("error");
-    if (connected) setBanner({ kind: "ok", text: "LinkedIn account connected." });
-    if (error) setBanner({ kind: "err", text: error });
     loadStatus();
-  }, [params]);
+  }, []);
 
   const curl = useMemo(() => {
     const base = origin || "https://your-app.vercel.app";
@@ -86,19 +80,6 @@ export default function HomeClient() {
     setPhase("locked");
   }
 
-  async function disconnect() {
-    setBusy(true);
-    const response = await fetch("/api/auth/disconnect", { method: "POST" });
-    const body = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      setBanner({ kind: "err", text: body.error || "Could not disconnect." });
-      return;
-    }
-    setBanner({ kind: "ok", text: "LinkedIn account disconnected." });
-    await loadStatus();
-  }
-
   async function publish(event) {
     event.preventDefault();
     setBusy(true);
@@ -133,7 +114,7 @@ export default function HomeClient() {
         <div>
           <h1>LinkedIn Poster</h1>
           <p className="lede">
-            LinkedIn credentials stay in this app. The bot signs in with a username and password, then sends the post text.
+            Posts use the LinkedIn access token stored on this server. The bot signs in with a username and password, then sends the post text.
           </p>
         </div>
         {phase === "ready" ? (
@@ -180,32 +161,23 @@ export default function HomeClient() {
       {phase === "ready" && status ? (
         <>
           <section className="card">
-            <h2>Account</h2>
+            <h2>Access token</h2>
             {status.connected ? (
               <>
-                <p>Connected{status.name ? ` as ${status.name}` : ""}.</p>
+                <p>Ready to post{status.name ? ` as ${status.name}` : ""}.</p>
                 <p className="meta">
-                  {status.personUrn}
-                  {status.expiresAt ? ` · access token until ${new Date(status.expiresAt).toLocaleString()}` : ""}
+                  {status.personUrn || "Member id is set."}
+                  {status.expiresAt
+                    ? ` · token until ${new Date(status.expiresAt).toLocaleString()}`
+                    : " · token is read from the server environment"}
                 </p>
-                <div className="row">
-                  <a className="button" href="/api/auth/linkedin">Reconnect</a>
-                  <button className="secondary" type="button" onClick={disconnect} disabled={busy}>
-                    Disconnect
-                  </button>
-                </div>
               </>
             ) : (
               <>
-                <p>No LinkedIn account is connected yet.</p>
-                {!status.canPersist ? (
-                  <p className="banner warn">
-                    No private Blob store is attached. After login, this server will show the tokens once so you can paste them into Vercel. Attach a Blob store if you want refresh to be saved automatically.
-                  </p>
-                ) : null}
-                <div className="row">
-                  <a className="button" href="/api/auth/linkedin">Connect LinkedIn</a>
-                </div>
+                <p>No access token is configured.</p>
+                <p className="meta">
+                  Set <code>LINKEDIN_ACCESS_TOKEN</code> and <code>LINKEDIN_PERSON_URN</code> on the server, then restart.
+                </p>
               </>
             )}
           </section>
@@ -265,7 +237,7 @@ export default function HomeClient() {
           <section className="card">
             <h2>Bot endpoint</h2>
             <p>
-              Keep <code>LINKEDIN_CLIENT_ID</code> and <code>LINKEDIN_CLIENT_SECRET</code> in the server environment.
+              Keep <code>LINKEDIN_ACCESS_TOKEN</code> and <code>LINKEDIN_PERSON_URN</code> in the server environment.
               Give the bot only the username and password from <code>AUTH_USERNAME</code> and <code>AUTH_PASSWORD</code>.
             </p>
             <p>

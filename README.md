@@ -56,7 +56,7 @@ Open `http://localhost:3000`, sign in with `AUTH_USERNAME` and `AUTH_PASSWORD`, 
 3. Add the environment variables. Set `APP_URL` to the production domain Vercel assigns, or to your custom domain.
 4. In the Vercel project, open Storage, create a **private** Blob store, and connect it to this project. That adds `BLOB_READ_WRITE_TOKEN`. Redeploy so the function can read it.
 5. Register `https://YOUR-APP.vercel.app/api/auth/callback` on the LinkedIn app. It must match exactly.
-6. Open the site, sign in with the username and password, and click **Connect LinkedIn**. Approve the consent screen with the account that should publish.
+6. Set `LINKEDIN_ACCESS_TOKEN` and `LINKEDIN_PERSON_URN` in the project environment. Open the site and sign in with the username and password. Publishing uses that access token.
 
 If Blob is not connected, the callback page shows the tokens once so you can paste them into environment variables. That mode works until the access token expires, and it cannot save a refresh.
 
