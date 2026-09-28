@@ -8,6 +8,11 @@ export default function HomeClient() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPages, setHistoryPages] = useState(0);
   const [text, setText] = useState("");
   const [visibility, setVisibility] = useState("PUBLIC");
   const [banner, setBanner] = useState(null);
@@ -33,6 +38,8 @@ export default function HomeClient() {
       setPhase("locked");
       setStatus(null);
       setPosts([]);
+      setHistoryTotal(0);
+      setHistoryPages(0);
       return;
     }
     const body = await response.json();
@@ -46,11 +53,31 @@ export default function HomeClient() {
     await loadHistory();
   }
 
-  async function loadHistory() {
-    const response = await fetch("/api/history", { cache: "no-store" });
-    if (!response.ok) return;
-    const body = await response.json();
+  async function loadHistory({ page = 1, from = historyFrom, to = historyTo } = {}) {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    const start = rangeStart(from);
+    const end = rangeEnd(to);
+    if (from && !start) {
+      setBanner({ kind: "err", text: "The start time is not valid." });
+      return;
+    }
+    if (to && !end) {
+      setBanner({ kind: "err", text: "The end time is not valid." });
+      return;
+    }
+    if (start) params.set("from", start);
+    if (end) params.set("to", end);
+    const response = await fetch(`/api/history?${params}`, { cache: "no-store" });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      setBanner({ kind: "err", text: body?.error || "Could not load history." });
+      return;
+    }
     setPosts(Array.isArray(body.posts) ? body.posts : []);
+    setHistoryPage(body.page || 1);
+    setHistoryTotal(body.total || 0);
+    setHistoryPages(body.totalPages || 0);
   }
 
   async function unlock(event) {
@@ -77,7 +104,20 @@ export default function HomeClient() {
     await fetch("/api/session", { method: "DELETE" });
     setStatus(null);
     setPosts([]);
+    setHistoryTotal(0);
+    setHistoryPages(0);
     setPhase("locked");
+  }
+
+  function searchHistory(event) {
+    event.preventDefault();
+    loadHistory({ page: 1, from: historyFrom, to: historyTo });
+  }
+
+  function clearHistorySearch() {
+    setHistoryFrom("");
+    setHistoryTo("");
+    loadHistory({ page: 1, from: "", to: "" });
   }
 
   async function publish(event) {
@@ -213,8 +253,38 @@ export default function HomeClient() {
 
           <section className="card">
             <h2>History</h2>
+            <p className="meta">The last 7 days. Search by the time a post was attempted.</p>
+            <form className="filters" onSubmit={searchHistory}>
+              <div className="field">
+                <label htmlFor="history-from">From</label>
+                <input
+                  id="history-from"
+                  type="datetime-local"
+                  value={historyFrom}
+                  onChange={(event) => setHistoryFrom(event.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="history-to">To</label>
+                <input
+                  id="history-to"
+                  type="datetime-local"
+                  value={historyTo}
+                  onChange={(event) => setHistoryTo(event.target.value)}
+                />
+              </div>
+              <div className="row">
+                <button type="submit">Search</button>
+                <button className="secondary" type="button" onClick={clearHistorySearch}>
+                  Clear
+                </button>
+                <span className="count">
+                  {historyTotal === 0 ? "0 posts" : `${historyTotal} post${historyTotal === 1 ? "" : "s"}`}
+                </span>
+              </div>
+            </form>
             {posts.length === 0 ? (
-              <p className="meta">No posts yet.</p>
+              <p className="meta">No posts in this range.</p>
             ) : (
               <ol className="history">
                 {posts.map((post) => (
@@ -232,6 +302,29 @@ export default function HomeClient() {
                 ))}
               </ol>
             )}
+            {historyTotal > 0 ? (
+              <div className="pager">
+                <button
+                  className="secondary"
+                  type="button"
+                  disabled={historyPage <= 1}
+                  onClick={() => loadHistory({ page: historyPage - 1 })}
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {historyPage} of {historyPages}
+                </span>
+                <button
+                  className="secondary"
+                  type="button"
+                  disabled={historyPage >= historyPages}
+                  onClick={() => loadHistory({ page: historyPage + 1 })}
+                >
+                  Next
+                </button>
+              </div>
+            ) : null}
           </section>
 
           <section className="card">
@@ -254,6 +347,21 @@ export default function HomeClient() {
       ) : null}
     </main>
   );
+}
+
+function rangeStart(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString();
+}
+
+function rangeEnd(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setSeconds(59, 999);
+  return date.toISOString();
 }
 
 function formatWhen(iso) {

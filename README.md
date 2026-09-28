@@ -84,7 +84,7 @@ Success:
 {"ok":true,"id":"urn:li:share:...","visibility":"PUBLIC","createdAt":"2026-09-28T06:42:00.000Z","historySaved":true}
 ```
 
-Each attempt is stored with the time, text, visibility, source, and LinkedIn id. The site shows that history after you sign in. The newest 100 entries are kept.
+Each attempt is stored with the time, text, visibility, source, and LinkedIn id. The site shows that history after you sign in, with time-range search and pages of 5. Entries older than 7 days are removed.
 
 For a Grok bot, add an HTTP action with that URL and basic authentication, or put the username and password in the JSON body. Leave the LinkedIn client id, client secret, and access token out of the bot.
 
