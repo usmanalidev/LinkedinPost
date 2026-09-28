@@ -78,6 +78,18 @@ The same username and password can be sent in the JSON body when the bot cannot 
 
 `visibility` may be `PUBLIC` or `CONNECTIONS`. It defaults to `PUBLIC`. `text` is required and must be 1–3000 characters.
 
+An optional image, up to 6 images, or a document can be sent as multipart form data. Image fields use the name `images`. A document uses `document`. Images are JPG, PNG, or GIF, up to 4 MB each. Two or more images are published as one gallery. Documents are PDF, DOC, DOCX, PPT, or PPTX, up to 8 MB.
+
+A poll can be sent in JSON:
+
+```json
+{"text":"The post text.","visibility":"PUBLIC","poll":{"question":"Which day works?","options":["Monday","Tuesday"],"duration":"SEVEN_DAYS"}}
+```
+
+`duration` may be `ONE_DAY`, `THREE_DAYS`, `SEVEN_DAYS`, or `FOURTEEN_DAYS`. A poll question is 1–140 characters. Each option is 1–30 characters, and there are 2–4 options.
+
+Comments and replies are written on LinkedIn. Open the post from history. The member token can publish, and LinkedIn denies comment access for this app.
+
 Success:
 
 ```json

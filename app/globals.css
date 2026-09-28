@@ -52,6 +52,26 @@ input, textarea, select {
 
 textarea { min-height: 160px; resize: vertical; }
 
+input[type="file"] { padding: 8px; }
+
+.previews {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.previews img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #e3dccf;
+}
+
+a { color: #1c1915; }
+
 .row {
   display: flex;
   gap: 10px;

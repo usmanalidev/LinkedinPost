@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function HomeClient() {
   const [phase, setPhase] = useState("checking");
@@ -15,6 +15,14 @@ export default function HomeClient() {
   const [historyPages, setHistoryPages] = useState(0);
   const [text, setText] = useState("");
   const [visibility, setVisibility] = useState("PUBLIC");
+  const [extra, setExtra] = useState("none");
+  const [imageFiles, setImageFiles] = useState([]);
+  const [documentFile, setDocumentFile] = useState(null);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollDuration, setPollDuration] = useState("SEVEN_DAYS");
+  const imageInputRef = useRef(null);
+  const documentInputRef = useRef(null);
   const [banner, setBanner] = useState(null);
   const [busy, setBusy] = useState(false);
   const [origin, setOrigin] = useState("");
@@ -120,15 +128,57 @@ export default function HomeClient() {
     loadHistory({ page: 1, from: "", to: "" });
   }
 
+  function clearImages() {
+    imageFiles.forEach((item) => URL.revokeObjectURL(item.url));
+    setImageFiles([]);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  }
+
+  function chooseImages(event) {
+    imageFiles.forEach((item) => URL.revokeObjectURL(item.url));
+    const files = Array.from(event.target.files || []).slice(0, 6);
+    setImageFiles(files.map((file) => ({ file, url: URL.createObjectURL(file) })));
+  }
+
+  function clearDocument() {
+    setDocumentFile(null);
+    if (documentInputRef.current) documentInputRef.current.value = "";
+  }
+
+  function changeExtra(value) {
+    setExtra(value);
+    if (value !== "images") clearImages();
+    if (value !== "document") clearDocument();
+  }
+
+  function updateOption(index, value) {
+    setPollOptions((current) => current.map((option, item) => (item === index ? value : option)));
+  }
+
   async function publish(event) {
     event.preventDefault();
     setBusy(true);
     setBanner(null);
-    const response = await fetch("/api/post", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, visibility }),
-    });
+    const options = pollOptions.map((option) => option.trim()).filter(Boolean);
+    let response;
+    if (extra === "images" || extra === "document") {
+      const form = new FormData();
+      form.set("text", text);
+      form.set("visibility", visibility);
+      if (extra === "images") imageFiles.forEach((item) => form.append("images", item.file));
+      if (extra === "document" && documentFile) form.set("document", documentFile);
+      response = await fetch("/api/post", { method: "POST", body: form });
+    } else {
+      response = await fetch("/api/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          visibility,
+          poll: extra === "poll" ? { question: pollQuestion.trim(), options, duration: pollDuration } : undefined,
+        }),
+      });
+    }
     const body = await response.json();
     setBusy(false);
     await loadHistory();
@@ -137,6 +187,10 @@ export default function HomeClient() {
       return;
     }
     setText("");
+    setPollQuestion("");
+    setPollOptions(["", ""]);
+    clearImages();
+    clearDocument();
     setBanner({
       kind: "ok",
       text: body.id ? `Posted. LinkedIn id: ${body.id}` : "Posted.",
@@ -232,6 +286,105 @@ export default function HomeClient() {
               onChange={(event) => setText(event.target.value)}
               placeholder="What should go on your profile?"
             />
+            <div className="field">
+              <label htmlFor="extra">Add</label>
+              <select id="extra" value={extra} onChange={(event) => changeExtra(event.target.value)}>
+                <option value="none">Text only</option>
+                <option value="images">Images</option>
+                <option value="document">Document</option>
+                <option value="poll">Poll</option>
+              </select>
+            </div>
+            {extra === "images" ? (
+              <div className="field">
+                <label htmlFor="image">Images</label>
+                <input
+                  id="image"
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif"
+                  multiple
+                  onChange={chooseImages}
+                />
+                <p className="meta">Up to 6 JPG, PNG, or GIF files. Each file can be 4 MB. Two or more become one gallery.</p>
+                {imageFiles.length > 0 ? (
+                  <div className="previews">
+                    {imageFiles.map((item) => (
+                      <img key={item.url} src={item.url} alt="" />
+                    ))}
+                    <button className="secondary" type="button" onClick={clearImages}>
+                      Remove images
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {extra === "document" ? (
+              <div className="field">
+                <label htmlFor="document">Document</label>
+                <input
+                  id="document"
+                  ref={documentInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf"
+                  onChange={(event) => setDocumentFile(event.target.files?.[0] || null)}
+                />
+                <p className="meta">PDF, DOC, DOCX, PPT, or PPTX, up to 8 MB.{documentFile ? ` ${documentFile.name}` : ""}</p>
+              </div>
+            ) : null}
+            {extra === "poll" ? (
+              <div className="field">
+                <label htmlFor="poll-question">Poll question</label>
+                <input
+                  id="poll-question"
+                  maxLength={140}
+                  value={pollQuestion}
+                  onChange={(event) => setPollQuestion(event.target.value)}
+                />
+                {pollOptions.map((option, index) => (
+                  <div className="field" key={index}>
+                    <label htmlFor={`poll-option-${index}`}>Option {index + 1}</label>
+                    <input
+                      id={`poll-option-${index}`}
+                      maxLength={30}
+                      value={option}
+                      onChange={(event) => updateOption(index, event.target.value)}
+                    />
+                  </div>
+                ))}
+                <div className="row">
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={pollOptions.length >= 4}
+                    onClick={() => setPollOptions((current) => [...current, ""])}
+                  >
+                    Add option
+                  </button>
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={pollOptions.length <= 2}
+                    onClick={() => setPollOptions((current) => current.slice(0, -1))}
+                  >
+                    Remove option
+                  </button>
+                </div>
+                <div className="field">
+                  <label htmlFor="poll-duration">Open for</label>
+                  <select
+                    id="poll-duration"
+                    value={pollDuration}
+                    onChange={(event) => setPollDuration(event.target.value)}
+                  >
+                    <option value="ONE_DAY">1 day</option>
+                    <option value="THREE_DAYS">3 days</option>
+                    <option value="SEVEN_DAYS">7 days</option>
+                    <option value="FOURTEEN_DAYS">14 days</option>
+                  </select>
+                </div>
+              </div>
+            ) : null}
             <div className="row">
               <label htmlFor="visibility">Visibility</label>
               <select
@@ -245,7 +398,7 @@ export default function HomeClient() {
               <span className="count">{text.trim().length} / 3000</span>
             </div>
             <div className="row">
-              <button type="submit" disabled={busy || text.trim().length === 0 || !status.connected}>
+              <button type="submit" disabled={busy || !canPublish(text, extra, imageFiles, documentFile, pollQuestion, pollOptions) || !status.connected}>
                 Publish
               </button>
             </div>
@@ -254,6 +407,9 @@ export default function HomeClient() {
           <section className="card">
             <h2>History</h2>
             <p className="meta">The last 7 days. Search by the time a post was attempted.</p>
+            <p className="meta">
+              Comments and replies are added on LinkedIn. Open a posted item there. This app can publish, and LinkedIn does not allow this token to read or write comments.
+            </p>
             <form className="filters" onSubmit={searchHistory}>
               <div className="field">
                 <label htmlFor="history-from">From</label>
@@ -294,9 +450,16 @@ export default function HomeClient() {
                       <span>{post.status === "posted" ? "Posted" : "Failed"}</span>
                       <span>{post.visibility === "CONNECTIONS" ? "Connections" : "Anyone"}</span>
                       <span>{post.source === "bot" ? "Bot" : "Site"}</span>
+                      {attachmentLabel(post.attachment) ? <span>{attachmentLabel(post.attachment)}</span> : null}
                     </div>
                     <p>{post.text}</p>
-                    {post.linkedinId ? <p className="meta">{post.linkedinId}</p> : null}
+                    {post.linkedinId ? (
+                      <p className="meta">
+                        <a href={`https://www.linkedin.com/feed/update/${post.linkedinId}`} target="_blank" rel="noreferrer">
+                          Open on LinkedIn to comment or reply
+                        </a>
+                      </p>
+                    ) : null}
                     {post.error ? <p className="meta">{post.error}</p> : null}
                   </li>
                 ))}
@@ -347,6 +510,24 @@ export default function HomeClient() {
       ) : null}
     </main>
   );
+}
+
+function canPublish(text, extra, imageFiles, documentFile, pollQuestion, pollOptions) {
+  if (text.trim().length === 0) return false;
+  if (extra === "images") return imageFiles.length > 0;
+  if (extra === "document") return Boolean(documentFile);
+  if (extra === "poll") {
+    return pollQuestion.trim().length > 0 && pollOptions.map((option) => option.trim()).filter(Boolean).length >= 2;
+  }
+  return true;
+}
+
+function attachmentLabel(attachment) {
+  if (attachment === "image") return "Image";
+  if (attachment === "images") return "Images";
+  if (attachment === "document") return "Document";
+  if (attachment === "poll") return "Poll";
+  return "";
 }
 
 function rangeStart(value) {
